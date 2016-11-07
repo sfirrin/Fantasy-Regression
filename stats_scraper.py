@@ -3,7 +3,6 @@ import requests
 import ujson as json
 import time
 import random
-from pprint import pprint
 
 
 ranker_ids = ['113', '120', '125', '127', '317', '387', '406', '43', '475', '64']
@@ -87,7 +86,9 @@ def get_actual_stats(year, week, position):
         name = row.find('a').text
         team = row.find_all('td')[1].text
         points = float(row.find_all('td')[-1].text)
-        actual_scores[name] = {'actual_points': points, 'actual_rank': i + 1, 'team': team}
+        actual_scores[name] = {'actual_points': points,
+                               'actual_rank': i + 1,
+                               'team': team}
 
     return actual_scores
 
@@ -96,9 +97,10 @@ def scrape_all():
 
     raw_data = {}
 
-    for year in ['2015']: #, '2016']:
+    for year in ['2015', '2016']:
         raw_data[year] = {}
-        for week in [str(i) for i in range(1, 2)]:
+        max_week = {'2015': 17, '2016': 8}
+        for week in [str(i) for i in range(1, max_week[year])]:
             raw_data[year][week] = {}
             for position in ['QB', 'RB', 'WR', 'FLX', 'TE', 'DST']:
                 print('#######################\n' + year + ' ' + week + ' ' + position)
@@ -113,7 +115,11 @@ def scrape_all():
                 raw_data[year][week][position] = position_week
                 # pprint(raw_data)
                 # Stop execution for a while in order to be polite to the servers
-                time.sleep(random.randint(30, 90) + random.random())
+                time.sleep(random.randint(20, 100) + random.random())
 
     with open('raw_rankings_and_stats.json', 'wb') as outfile:
         json.dump(raw_data, outfile)
+
+
+if __name__ == '__main__':
+    scrape_all()

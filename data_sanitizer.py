@@ -145,4 +145,3 @@ def get_all_weeks(serialize=False):
         with open('fantasy-stats-2015-2016-wk8.pickle') as outfile:
             pickle.dump(all_weeks, outfile, pickle.HIGHEST_PROTOCOL)
     return all_weeks
-    
