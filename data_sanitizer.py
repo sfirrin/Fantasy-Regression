@@ -12,6 +12,32 @@ def get_raw_data():
         raw_data = json.load(raw_file)
     return raw_data
 
+class AllWeeks:
+    def __init__(self):
+        self.weeks = get_all_stats_dict()
+
+    def get_week(self, year, week):
+        return self.weeks[year][week]
+
+    def all_data_lists(self):
+        output = []
+        for week in self.get_all_weeks():
+            output += week.data_lists()
+        return output
+
+    def all_swapped_data_lists(self):
+        data_lists = []
+        for week in self.get_all_weeks():
+            data_lists += week.swapped_data_lists()
+        return data_lists
+
+    def get_all_weeks(self):
+        all_weeks = []
+        for year, weeks in self.weeks.iteritems():
+            for week_number, week in weeks.iteritems():
+                all_weeks.append(week)
+        return all_weeks
+
 
 class Week:
     def __init__(self, year, week, raw_data=get_raw_data()):
@@ -23,7 +49,53 @@ class Week:
         self.tes = get_players(self.year, self.week, 'TE', raw_data)
         self.flexes = get_players(self.year, self.week, 'FLX', raw_data)
         self.dsts = get_players(self.year, self.week, 'DST', raw_data)
+        self.position_dict = {'QB': self.qbs, 'RB': self.rbs, 'WR': self.wrs,
+                              'TE': self.tes, 'FLX': self.flexes, 'DST': self.dsts}
 
+        self.add_swapped_data_to_players()
+
+
+    def add_swapped_data_to_players(self):
+        for player in self.all_players():
+            player_data = player.data_list()
+            swapped_data = []
+            # Skipping the last item in player data b/c that one has the player's points
+            for index, predicted_rank in enumerate(player_data[:-1]):
+                swapped_data.append(self.get_rank_actual_points(
+                    player.position, predicted_rank))
+            player.swapped_predictions = swapped_data
+
+
+
+    def data_lists(self):
+        # Returns a list of rankings ending in the value of the actual score or
+        # the actual rank
+        # This method exists to clean up the data for fitting prediction models
+        return [player.data_list() for player in self.all_players()]
+
+
+    def swapped_data_lists(self):
+        # This method returns a list of values that replaces each ranker's rank
+        # with the actual score that the player at that position in that rank scored
+        data_lists = []
+        for player in self.all_players():
+            player_data = player.data_list()
+            # Skipping the last item in player data b/c that one has the player's points
+            for index, predicted_rank in enumerate(player_data[:-1]):
+                player_data[index] = self.get_rank_actual_points(
+                    player.position, predicted_rank)
+            data_lists.append(player_data)
+        return data_lists
+
+    def all_players(self):
+        return self.qbs + self.rbs + self.wrs + self.tes + self.flexes + self.dsts
+
+    def get_rank_actual_points(self, position, rank):
+        for player in self.position_dict[position]:
+            if player.actual_rank == rank:
+                return player.actual_points
+        # print(position, rank)
+        return 0
 
 class PlayerWeek:
     def __init__(self, name, p_dict, position):
@@ -33,6 +105,11 @@ class PlayerWeek:
         self.actual_points = p_dict['actual_points']
         self.team = p_dict['team']
         self.position = position
+        # Swapped predictions means that the expert's ranking is swapped with the
+        # actual points of the player at that position and that rank for the week
+        # This remains an empty list until the add_swapped_data_to_players() function
+        # of Week is called
+        self.swapped_predictions = []
 
     def __str__(self):
         output = '====\n' + self.name
@@ -41,6 +118,19 @@ class PlayerWeek:
         output += '\nMedian pred: ' + str(numpy.nanmedian(self.rankings.values()))
         output += '\nPredicted: ' + str(self.rankings.values())
         return output
+
+    def data_list(self, rank=False):
+        # If rank is false, add the actual points to this data list in the last slot
+        # If it's true, we add the rank here in the last slot
+        data = []
+        # Sorting the keys here so that each ranker always has the same list index
+        for ranker_key in sorted(self.rankings.keys()):
+            data.append(self.rankings[ranker_key])
+        if rank:
+            data.append(self.actual_rank)
+        else:
+            data.append(self.actual_points)
+        return data
 
 
 def print_week(player_dictionary):
@@ -123,8 +213,20 @@ def get_actuals(year, week, position, raw_data):
         all_points.append(v['actual_points'])
 
     all_points.sort(reverse=True)
+    # TODO: This assigns the rank to the place in all_points where that number of points
+    # appears first, so it assigns the same rank to multiple players
+    # and some ranks have no players
+    already_given_ranks = set()
     for k, v in flex_dict.iteritems():
-        v['actual_rank'] = all_points.index(v['actual_points']) + 1
+
+        found_rank = all_points.index(v['actual_points']) + 1
+        while True:
+            if found_rank not in already_given_ranks:
+                v['actual_rank'] = found_rank
+                already_given_ranks.add(found_rank)
+                break
+            else:
+                found_rank += 1
 
     return flex_dict
 
@@ -133,15 +235,37 @@ def get_all_weeks(serialize=False):
     all_weeks = []
     raw_data = get_raw_data()
 
-    year = 2015
+    year = '2015'
+    # TODO: The scraper had a bug where it didn't get week 17, re-run scraper
+    # and change the 17 below to 18
     for week in [str(i) for i in range(1, 17)]:
         all_weeks.append(Week(year, week, raw_data))
 
-    year = 2016
+    year = '2016'
+    # TODO: Same thing as above here
     for week in [str(i) for i in range(1, most_recent_2016_week)]:
         all_weeks.append(Week(year, week, raw_data))
 
     if serialize:
         with open('fantasy-stats-2015-2016-wk8.pickle') as outfile:
             pickle.dump(all_weeks, outfile, pickle.HIGHEST_PROTOCOL)
+    return all_weeks
+
+def get_all_stats_dict():
+    all_weeks = {}
+    raw_data = get_raw_data()
+
+    year = '2015'
+    all_weeks['2015'] = {}
+    # TODO: The scraper had a bug where it didn't get week 17, re-run scraper
+    # and change the 17 below to 18
+    for week in [str(i) for i in range(1, 17)]:
+        all_weeks[year][week] = Week(year, week, raw_data)
+
+    year = '2016'
+    all_weeks['2016'] = {}
+    # TODO: Same thing as above here
+    for week in [str(i) for i in range(1, most_recent_2016_week)]:
+        all_weeks[year][week] = Week(year, week, raw_data)
+
     return all_weeks

@@ -100,7 +100,7 @@ def scrape_all():
     for year in ['2015', '2016']:
         raw_data[year] = {}
         max_week = {'2015': 17, '2016': 8}
-        for week in [str(i) for i in range(1, max_week[year])]:
+        for week in [str(i) for i in range(1, max_week[year] + 1)]:
             raw_data[year][week] = {}
             for position in ['QB', 'RB', 'WR', 'FLX', 'TE', 'DST']:
                 print('#######################\n' + year + ' ' + week + ' ' + position)
