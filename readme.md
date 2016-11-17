@@ -1,4 +1,4 @@
-# Deep Fantasy
+# Fantasy Regression
 
 Can we use the predictions of the most accurate fantasy football experts to generate a model that can more accurately predict the fantasy points scored by players? If so, which regression model is best?
 
